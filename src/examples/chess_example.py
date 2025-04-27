@@ -42,7 +42,7 @@ def main():
     print(f"Mean reward: {eval_results['mean_reward']:.2f} ± {eval_results['std_reward']:.2f}")
     
     # Save the trained model
-    agent.save('chess_dqn_model.pth')
+    agent.save('data/chess_model.pth')
     
     env.close()
 

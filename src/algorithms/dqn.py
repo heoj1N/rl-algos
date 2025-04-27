@@ -4,7 +4,7 @@ import torch.optim as optim
 import numpy as np
 from collections import deque
 import random
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any
 from .base import BaseAlgorithm
 
 class DQN(BaseAlgorithm):

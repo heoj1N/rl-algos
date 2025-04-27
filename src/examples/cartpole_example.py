@@ -29,7 +29,7 @@ def main():
     print(f"Mean reward: {eval_results['mean_reward']:.2f} ± {eval_results['std_reward']:.2f}")
     
     # Save the trained model
-    agent.save('dqn_model.pth')
+    agent.save('data/cartpole_model.pth')
     
     env.close()
 
