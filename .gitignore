@@ -18,11 +18,3 @@ __pycache__/
 *.pth.tar.bz2
 *.pth.tar.xz
 *.pth.tar.lzma
-
-*.png
-*.jpg
-*.jpeg
-*.gif
-*.bmp
-*.tiff
-*.ico
