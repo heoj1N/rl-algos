@@ -5,23 +5,14 @@ from gymnasium import spaces
 from typing import Tuple, Dict, Any
 
 class ChessEnv(gym.Env):
-    """Chess environment implementing the gymnasium interface."""
-    
     def __init__(self):
+        """Chess environment implementing the gymnasium interface."""
         super().__init__()
-        
-        # Initialize the chess board
         self.board = chess.Board()
-        
-        # Define action space (all possible moves)
-        self.action_space = spaces.Discrete(4672)  # Maximum number of legal moves in chess
-        
-        # Define observation space (8x8 board with piece types and colors)
+        self.action_space = spaces.Discrete(4672) # max legal moves
         self.observation_space = spaces.Box(
             low=-6, high=6, shape=(8, 8), dtype=np.int8
         )
-        
-        # Mapping from piece types to integers
         self.piece_to_int = {
             chess.PAWN: 1,
             chess.KNIGHT: 2,
@@ -30,8 +21,6 @@ class ChessEnv(gym.Env):
             chess.QUEEN: 5,
             chess.KING: 6
         }
-        
-        # Create move mapping
         self._create_move_mapping()
     
     def _create_move_mapping(self) -> None:

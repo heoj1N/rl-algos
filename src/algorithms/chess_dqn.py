@@ -1,35 +1,54 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 import numpy as np
 from collections import deque
 import random
 from typing import Dict, Any
 from .base import BaseAlgorithm
-from ..networks.chess_network import ChessNetwork
+
+class ChessNetwork(nn.Module):
+    def __init__(self, action_dim: int):
+        super().__init__()
+        
+        self.conv1 = nn.Conv2d(1, 64, kernel_size=3, padding=1)
+        self.conv2 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
+        self.conv3 = nn.Conv2d(128, 256, kernel_size=3, padding=1)
+        
+        self.fc1 = nn.Linear(256 * 8 * 8, 512)
+        self.fc2 = nn.Linear(512, 256)
+        self.fc3 = nn.Linear(256, action_dim)
+        
+        self.bn1 = nn.BatchNorm2d(64)
+        self.bn2 = nn.BatchNorm2d(128)
+        self.bn3 = nn.BatchNorm2d(256)
+        
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = x.unsqueeze(1)
+        x = F.relu(self.bn1(self.conv1(x)))
+        x = F.relu(self.bn2(self.conv2(x)))
+        x = F.relu(self.bn3(self.conv3(x)))
+        x = x.view(x.size(0), -1)
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)
+        
+        return x
 
 class ChessDQN(BaseAlgorithm):
-    """Deep Q-Network implementation for chess."""
-    
     def __init__(self, env: Any, config: Dict[str, Any]):
         super().__init__(env, config)
-        
-        # Network parameters
+
         self.state_dim = env.observation_space.shape
         self.action_dim = env.action_space.n
-        
-        # Create networks
+
         self.policy_net = ChessNetwork(self.action_dim).to(self.device)
         self.target_net = ChessNetwork(self.action_dim).to(self.device)
+
         self.target_net.load_state_dict(self.policy_net.state_dict())
-        
-        # Optimizer
         self.optimizer = optim.Adam(self.policy_net.parameters(), lr=config.get('learning_rate', 0.001))
-        
-        # Replay buffer
         self.memory = deque(maxlen=config.get('memory_size', 100000))
-        
-        # Training parameters
         self.batch_size = config.get('batch_size', 128)
         self.gamma = config.get('gamma', 0.99)
         self.epsilon = config.get('epsilon_start', 1.0)
@@ -39,7 +58,6 @@ class ChessDQN(BaseAlgorithm):
         self.steps_done = 0
     
     def _get_action(self, state: np.ndarray) -> int:
-        """Select action using epsilon-greedy policy."""
         self.steps_done += 1
         
         if random.random() < self.epsilon:
@@ -51,48 +69,41 @@ class ChessDQN(BaseAlgorithm):
             return q_values.argmax().item()
     
     def _update_network(self) -> float:
-        """Update the Q-network using experience replay."""
         if len(self.memory) < self.batch_size:
             return 0.0
             
         batch = random.sample(self.memory, self.batch_size)
         states, actions, rewards, next_states, dones = zip(*batch)
-        
         states = torch.FloatTensor(states).to(self.device)
         actions = torch.LongTensor(actions).to(self.device)
         rewards = torch.FloatTensor(rewards).to(self.device)
         next_states = torch.FloatTensor(next_states).to(self.device)
         dones = torch.FloatTensor(dones).to(self.device)
         
-        # Compute Q(s_t, a)
+        # Q(s_t, a)
         current_q_values = self.policy_net(states).gather(1, actions.unsqueeze(1))
         
-        # Compute Q(s_{t+1}, a)
+        # Q(s_{t+1}, a)
         with torch.no_grad():
             next_q_values = self.target_net(next_states).max(1)[0]
             target_q_values = rewards + (1 - dones) * self.gamma * next_q_values
         
-        # Compute loss and update
         loss = nn.MSELoss()(current_q_values.squeeze(), target_q_values)
         
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
         
-        # Update target network
         if self.steps_done % self.target_update == 0:
             self.target_net.load_state_dict(self.policy_net.state_dict())
         
-        # Decay epsilon
         self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
         
         return loss.item()
     
     def train(self, num_episodes: int) -> Dict[str, Any]:
-        """Train the DQN agent."""
         episode_rewards = []
         losses = []
-        
         for episode in range(num_episodes):
             state, _ = self.env.reset()
             episode_reward = 0
@@ -125,9 +136,7 @@ class ChessDQN(BaseAlgorithm):
         }
     
     def evaluate(self, num_episodes: int = 10) -> Dict[str, float]:
-        """Evaluate the current policy."""
         rewards = []
-        
         for _ in range(num_episodes):
             state, _ = self.env.reset()
             episode_reward = 0
@@ -150,7 +159,6 @@ class ChessDQN(BaseAlgorithm):
         }
     
     def save(self, path: str) -> None:
-        """Save the model and algorithm state."""
         torch.save({
             'policy_net_state_dict': self.policy_net.state_dict(),
             'target_net_state_dict': self.target_net.state_dict(),
@@ -160,7 +168,6 @@ class ChessDQN(BaseAlgorithm):
         }, path)
     
     def load(self, path: str) -> None:
-        """Load the model and algorithm state."""
         checkpoint = torch.load(path)
         self.policy_net.load_state_dict(checkpoint['policy_net_state_dict'])
         self.target_net.load_state_dict(checkpoint['target_net_state_dict'])
